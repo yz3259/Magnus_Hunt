@@ -1,0 +1,502 @@
+<!DOCTYPE html>
+<html>
+<body  onload="setup()">
+
+<h1>The University of Bath treasure hunt online game</h1>
+
+<p id="intro">
+Hi dear student! Sorry to keep you waiting! Welcome to the University of Bath!<br><br>
+My name is Professor Massimo Decimo Meridio, but everyone simply calls me Prof. Mad Maximus.
+As you might have guessed, I come originally from the ancient Roman imperial period. So What am I supposed to do here?
+Well, the reason is simple and very appealing for you...greedy student.
+I want to help you uncover an ancient roman treasure, hidden somewhere here in the University.
+But you know... the time goes on and my memory is not as good as 2000 years ago.<br><br>
+I need a smart student like you that is able to solve a series of riddles.
+These will conduct you to the location of this unvaluable fortune, which will make you rich.
+However there are many obstacles that will hinder the progress of the game.
+At the beginning of the Treasure hunt, you will receive a scroll containing a riddle that points you to a specific building within the University.
+If your mind is sharp enough to find the building, you will be presented with a new though challenge.<br><br>
+In each location you will have to play and win a hangman game. Depending on the difficulty level and the number of hints requested to guess the word, you will collect a certain amount of points.
+At the end of the hangman game, you will collect another scroll containing the riddle for the next building.<br><br>
+The game will finish once you reach the last building. At that point, depending on the total points collected you will be rewarded with a treasure of increasing worth.
+If you prove yourself a virtuous and clever Bathian student, you will be rich enough not to care about graduating and chill out for the rest of your permanence here at the Bath Spa.<br><br>
+So, good luck pal and do your best...At my signal, unleash hell!!!</p>
+
+<p>How challenging should the game be?</p>
+<input type="radio" id="easy" name="difficulty" value="easy" checked="checked" onclick="easy_selected()">
+<label for="easy">I'm just a casual player looking for some fun.</label><br>
+<input type="radio" id="hard" name="difficulty" value="hard" onclick="hard_selected()">
+<label for="hard">Nah, I'm looking for a really hardcore challange.</label><br>
+
+<p id="click_map_text">Click on the map to go to a chosen location. Prof. Mad Maximus suggest you to visit ... first.</p>
+
+<img id="map" src="map.bmp" alt="" width="800" height="430" onclick="mapclicked(event)"> <br>
+<canvas id="myCanvas" width="800" height="430" onclick="mapclicked(event)"></canvas>
+
+<h2 id="welcome">Welcome to the University of Bath!</h2>
+<img id="image" src="bus_station.jpg" align="left" style="margin-right: 10px;" alt="" width="300">
+
+<p id="story"></p>
+
+
+
+<h3 id="letters"></h3>
+<p id="password_text">Enter the secret password:</p>
+<input id="password_textbox" type="text" size="40">
+
+<button id="submit_button" onclick="submit(event)">submit</button><br><br>
+<button id="hint_button" onclick="give_hint(event)">Can I buy a hint, please?</button>
+<button id="letter_button" onclick="give_letter(event)">Can I buy an extra letter, please?</button><br>
+<p id="after_message"></p>
+<p id="hint_text"></p>
+
+<audio id="myAudio">
+  <source src="" type="audio/mpeg">
+  Your browser does not support the audio element.
+</audio>
+
+<script src="https://ajax.googleapis.com/ajax/libs/jquery/3.5.1/jquery.min.js"></script>
+<script>
+
+var score = 1000;
+
+var n_locations = 0;
+var location_id = -1;
+var location_names = [];//["University Library", "Departament of Mathematical Sciences"];
+var location_labels = [];//["Library", "Maths"];
+var passwords = [];
+/*
+var west = [352, 269];
+var north = [80, 145];
+var width = [30, 60];
+var height = [40, 25];
+*/
+var west = [];
+var north = [];
+var width = [];
+var height = [];
+
+var intro_text = [];
+var after_text = [];
+var hints_available = [];
+
+var riddle_object_ids = ["password_text", "password_textbox", "submit_button", "hint_button", "letters", "letter_button"];
+var location_active = [];
+var location_completed = [];
+
+var building_unlocked = [];
+
+var player_location = [537, 173];
+var word = [];
+var visited = [];
+var difficulty = 0;
+
+var firstClick = true;
+
+class Hint {
+	constructor(faculty,word,dif,kind,name) {
+		this.faculty = null;
+		this.word = null;
+		this.dif = null;
+		this.kind = null;
+		this.name = null;
+	}
+	add_faculty(faculty) {
+		this.faculty = faculty;
+	}
+	add_word(word) {
+		this.word = word;
+	}
+	add_dif (dif) {
+		this.dif = dif;
+	}
+	add_kind(kind) {
+		this.kind= kind;
+	}
+	add_name(name) {
+		this.name= name;
+	}
+}
+
+var hints = [];
+var hints_left = [];
+
+function process_hints(alltext) {
+	var lines = alltext.split(/\r?\n/);
+	for (const line in lines) {
+		if (lines[line].substring(0)==="#") {
+			continue;
+		}
+		else {
+			var table = lines[line].split(",");
+			var hint = new Hint();
+			hint.add_faculty(table[0]);
+			hint.add_word(table[1]);
+			hint.add_dif(parseInt(table[2]));
+			hint.add_kind(table[3]);
+			hint.add_name(table[4]);
+			hints.push(hint);
+		}
+	}
+}
+
+function process_locations(alltext) {
+	var lines = alltext.split(/\r?\n/);
+	lines = lines.sort(() => Math.random() - 0.5);
+	n_locations = 0;
+	for (const line in lines) {
+		if (lines[line].substring(0,1)==="#") {
+			continue;
+		} else {
+			n_locations++;
+			var table = lines[line].split(";");
+			location_labels.push(table[0]);
+			location_names.push(table[2]);
+			intro_text.push(table[4]);
+			after_text.push(table[5]);
+			west.push(parseInt(table[6]));
+			north.push(parseInt(table[7]));
+			width.push(parseInt(table[8]) - parseInt(table[6]));
+			height.push(parseInt(table[9]) - parseInt(table[7]));
+			location_active.push(false);
+			location_completed.push(false);
+			visited.push(false);
+			building_unlocked.push(n_locations);
+		}
+	}
+	building_unlocked[building_unlocked.length-1] = -1;
+}
+
+function setup() {
+	jQuery.ajax({
+		async: false,
+		type: 'GET',
+		url: 'https://people.bath.ac.uk/pwm27/Hints.csv',
+		success: function(data) {
+			process_hints(data)
+		}
+	});
+	
+	jQuery.ajax({
+		async: false,
+		type: 'GET',
+		url: 'https://people.bath.ac.uk/pwm27/Faculties.csv',
+		success: function(data) {
+			process_locations(data)
+		}
+	});
+	
+	document.getElementById("welcome").style.visibility = 'hidden';
+	document.getElementById("image").style.visibility = 'hidden';
+	
+	location_active[0] = true;
+	document.getElementById("click_map_text").innerHTML = "Click on the map to go to a chosen location. Prof. Mad Maximus suggest you to visit the " + location_names[0] + " first."
+	
+	for (i=0; i<riddle_object_ids.length; i++) {
+		var obj = document.getElementById(riddle_object_ids[i]);
+		obj.style.visibility = 'hidden';
+	}
+	
+	align_canvas();
+} 
+
+function align_canvas() {
+	var img = document.getElementById("map");
+	var cnvs = document.getElementById("myCanvas");
+	cnvs.style.position = "absolute";
+	cnvs.style.left = img.offsetLeft + "px";
+	cnvs.style.top = img.offsetTop + "px";
+	draw();
+}
+
+function mapclicked(event) {
+
+	if (firstClick) {
+		firstClick = false;
+		
+		document.getElementById("welcome").style.visibility = 'visible';
+		document.getElementById("image").style.visibility = 'visible';
+		document.getElementById("intro").style.visibility = 'hidden';
+		document.getElementById("intro").innerHTML = '';
+		document.getElementById("click_map_text").style.visibility = 'hidden';
+		document.getElementById("click_map_text").innerHTML = '';
+		align_canvas();
+		
+		document.getElementById("easy").disabled = true;
+		document.getElementById("hard").disabled = true;
+		
+		passwords = [];
+		hints = hints.sort(() => Math.random() - 0.5);
+		
+		for(var i=0; i<location_labels.length; i++) {
+			for(var j=0; j<hints.length; j++) {
+				if (hints[j].faculty == location_labels[i] && hints[j].dif == difficulty) {
+					passwords.push(hints[j].word);
+					var new_word = "";
+					for(var k=0; k<hints[j].word.length; k++) {
+						if (hints[j].word.charAt(k) == ' ') {
+							new_word += ' ';
+						} else {
+							new_word += '-';
+						}
+					}
+					word.push(new_word);
+					
+					break;
+				}
+			}
+		}
+		
+		
+		hints_left = [];
+		hints_available = [];
+		
+		for(var i=0; i<location_labels.length; i++) {
+			var n_hints = 0;
+			for(var j=0; j<hints.length; j++) {
+				hints_available.push(true);
+				if(hints[j].word == passwords[i]) {
+					n_hints++;
+				}
+			}
+			hints_left.push(n_hints);
+		}
+		
+		console.log(location_labels);
+		console.log(passwords);
+		return;
+	}
+
+	document.getElementById("password_textbox").value = "";
+	document.getElementById("after_message").innerHTML = "";
+	
+	var img = document.getElementById("map");
+	var cnvs = document.getElementById("myCanvas");
+	
+	var rect = event.target.getBoundingClientRect();
+    var x = event.clientX - rect.left;
+    var y = event.clientY - rect.top;
+	
+	player_location[0] = x;
+	player_location[1] = y;
+	
+	location_id = -1;
+	for(var i=0; i<n_locations; i++) {
+		if (location_active[i]) {
+			if (x > west[i] && x < west[i] + width[i] && y > north[i] && y < north[i] + height[i]) {
+				location_id = i;
+				if (!visited[location_id]) {
+					visited[location_id] = true;
+					score = score + 100;
+					give_letter();
+				}
+				let result = 'Welcome to the ' + location_names[i] + '!';
+				document.getElementById("welcome").innerHTML = result;
+				document.getElementById("image").src = 'Game_objects/' + location_labels[i] + ".jpg";
+				document.getElementById("story").innerHTML = intro_text[location_id];
+				if (hints_left[location_id] == 0) {
+					document.getElementById("hint_button").disabled = true;
+				} else {
+					document.getElementById("hint_button").disabled = false;
+				}
+			}
+		}
+	}
+	if (location_id == -1) {
+		document.getElementById("welcome").innerHTML = "Welcome to the University of Bath!";
+		document.getElementById("image").src = "university_sign.jpg";
+		document.getElementById("story").innerHTML = "Click on the map where would you like to go.";
+		for (i=0; i<riddle_object_ids.length; i++) {
+			var obj = document.getElementById(riddle_object_ids[i]);
+			obj.style.visibility = 'hidden';
+		}
+	} else {
+		for (i=0; i<riddle_object_ids.length; i++) {
+			var obj = document.getElementById(riddle_object_ids[i]);
+			obj.style.visibility = 'visible';
+			update_letters();
+		}
+	}
+	
+	draw();
+}
+
+function submit(event) {
+	var obj = document.getElementById("password_textbox");
+	var guess = obj.value;
+	if (guess == passwords[location_id]) {
+		location_completed[location_id] = true;
+		location_active[location_id] = false;
+		score = score + 1000;
+		if (building_unlocked[location_id] == -1) {
+			document.getElementById("after_message").innerHTML = "You won the game!";
+		} else {
+			document.getElementById("after_message").innerHTML = after_text[location_id] + ' Now head to the ' + location_names[building_unlocked[location_id]] + '.';
+			location_active[building_unlocked[location_id]] = true;
+			draw();
+		}
+		word[location_id] = passwords[location_id];
+	} else {
+		var goal = passwords[location_id];
+		
+		var word_length = goal.length;
+		
+		var new_word = "";
+		var letter_discovered = false;
+		for (var i=0; i<goal.length; i++) {
+			var missed = true;
+			if (i < guess.length) {
+				if(goal.charAt(i) == guess.charAt(i)) {
+					new_word = new_word + goal.charAt(i);
+					missed = false;
+					if (word[location_id].charAt(i)=='-') {
+						letter_discovered = true;
+					}
+				}
+			}
+			if (missed) new_word = new_word + word[location_id].charAt(i);
+		}
+		word[location_id] = new_word;
+		
+		if (letter_discovered) {
+			document.getElementById("after_message").innerHTML = "You found a new letter. Keep trying :)";
+		} else {
+			document.getElementById("after_message").innerHTML = "Wrong answer. Try again or buy a hint :)";
+			score = score - 50;
+		}
+	}
+	update_letters();
+}
+
+function give_hint(event) {
+	score = score - 100;
+	hints_left[location_id]--;
+	for(var i=0; i<hints.length; i++) {
+		if (hints_available[i] > 0 && hints[i].word == passwords[location_id]) {
+			hints_available[i] = false;
+			
+			if (hints[i].kind=='string') {
+				console.log('string');
+				console.log(hints[i].name);
+				document.getElementById("hint_text").innerHTML = '<b>HINT:</b> ' + hints[i].name;
+			} else if (hints[i].kind=="image") {
+				console.log('image');
+				console.log(hints[i].name);
+				document.getElementById("image").src = 'Game_objects/' + hints[i].name;				
+			} else if (hints[i].kind=="song") {
+				console.log('song');
+				console.log(hints[i].name);
+				document.getElementById("myAudio").setAttribute('src', hints[i].name);
+				document.getElementById("myAudio").play();
+			}
+			break;
+		}
+	}
+	if (hints_left[location_id] == 0) {
+		document.querySelector('hint_button').disabled = true;
+	}
+	//
+	draw();
+}
+
+String.prototype.replaceAt = function(index, replacement) {
+    return this.substr(0, index) + replacement + this.substr(index + replacement.length);
+}
+
+function give_letter(event) {
+	score = score - 100;
+	var number_of_blanks = 0;
+	for(var i=0; i<word[location_id].length; i++) {
+		if (word[location_id].charAt(i) == "-") {
+			number_of_blanks = number_of_blanks + 1;
+		}
+	}
+	var letter_to_give = Math.floor(Math.random() * number_of_blanks);
+	for(var i=0; i<word[location_id].length; i++) {
+		if (word[location_id].charAt(i) == "-") {
+			if(letter_to_give == 0) {
+				word[location_id] = word[location_id].replaceAt(i, passwords[location_id].charAt(i));
+				break;
+			} else {
+				letter_to_give = letter_to_give - 1;
+			}
+		}
+	}
+	update_letters();
+	draw();
+}
+
+function draw() {
+	var cnvs = document.getElementById("myCanvas");
+	var ctx = cnvs.getContext("2d");
+	
+	ctx.clearRect(0, 0, cnvs.width, cnvs.height);
+	
+	drawing = new Image();
+	drawing.src = "roman_soldier.png"; // can also be a remote URL e.g. http://
+	drawing.onload = function() {
+	   ctx.drawImage(drawing,player_location[0],player_location[1]);
+	};
+	
+	ctx.lineWidth = 3;
+	/*
+	ctx.beginPath();
+	ctx.arc(player_location[0], player_location[1], 10, 0, 2 * Math.PI, false);
+	ctx.lineWidth = 3;
+	ctx.strokeStyle = '#ff0000';
+	ctx.stroke();*/
+	
+	ctx.font = "24px Arial";
+	ctx.beginPath();
+	ctx.rect(10, 387, 180, 30);
+	ctx.strokeStyle = '#000000';
+	ctx.fillStyle = "white";
+	ctx.fill();
+	ctx.fillStyle = "black";
+	ctx.fillText("Score: " + score, 20, 410);
+	ctx.stroke();
+	
+	for(var i=0; i<n_locations; i++) {
+		if (location_active[i]) {
+			ctx.beginPath();
+			ctx.rect(west[i], north[i], width[i], height[i]);
+			ctx.strokeStyle = '#ff0000';
+			ctx.stroke();
+		}
+		if (location_completed[i]) {
+			ctx.beginPath();
+			ctx.rect(west[i], north[i], width[i], height[i]);
+			ctx.strokeStyle = '#00ff00';
+			ctx.stroke();
+		}
+	}
+}
+
+function update_letters() {
+	var text = "";
+	for(var i=0; i<word[location_id].length; i++) {
+		if (word[location_id].charAt(i) == ' ') {
+			text = text + " | ";
+		} else if (word[location_id].charAt(i) == '-') {
+			text = text + "<u>&nbsp;&nbsp;</u> ";
+		} else {
+			text = text + "<u>" + word[location_id].charAt(i) + "</u> ";
+		}
+	}
+	document.getElementById("letters").innerHTML = text;
+}
+
+function hard_selected() {
+	difficulty = 1;
+}
+
+function easy_selected() {
+	difficulty = 0;
+}
+
+$(window).resize(align_canvas);
+
+</script>
+
+</body>
+</html>
